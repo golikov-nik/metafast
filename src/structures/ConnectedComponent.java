@@ -1,20 +1,25 @@
 package structures;
 
-import it.unimi.dsi.fastutil.longs.LongArrayList;
+import ru.ifmo.genetics.dna.Dna;
+import ru.ifmo.genetics.dna.kmers.ShortKmer;
+import ru.ifmo.genetics.io.writers.WritersUtils;
 import ru.ifmo.genetics.structures.map.BigLong2ShortHashMap;
 import ru.ifmo.genetics.utils.tool.ExecutionFailedException;
 
 import java.io.*;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+
 
 public class ConnectedComponent implements Comparable<ConnectedComponent> {
 
     /**
      * Stores k-mers if the component isn't a big one (less than b2 vertices).
      */
-    public List<Long> kmers;
+    public HashSet<Long> kmers;
 
     /**
      * Current component size (number of k-mers)
@@ -42,7 +47,7 @@ public class ConnectedComponent implements Comparable<ConnectedComponent> {
 
 
     public ConnectedComponent() {
-        kmers = new LongArrayList();
+        kmers = new HashSet<>();
         size = 0;
         weight = 0;
     }
@@ -74,7 +79,7 @@ public class ConnectedComponent implements Comparable<ConnectedComponent> {
 
         outputStream.close();
     }
-
+    
     public static List<ConnectedComponent> loadComponents(File file) throws ExecutionFailedException {
         try {
             DataInputStream inputStream = new DataInputStream(new BufferedInputStream(new FileInputStream(file)));
@@ -117,4 +122,56 @@ public class ConnectedComponent implements Comparable<ConnectedComponent> {
         }
         return -Long.compare(size, o.size);
     }
+
+
+	public static void printComponents(List<ConnectedComponent> components, int k, String output) throws FileNotFoundException {
+		List<Character> nucs = Arrays.asList('A', 'G', 'C', 'T');
+		new File(output + "/fasta").mkdir();
+		for (int i = 0; i < components.size(); i++) {
+			String filePath = output + "/fasta/comp_" + (i+1) + ".fa";
+			ConnectedComponent comp = components.get(i);
+			StringBuilder builder = new StringBuilder(">\n");
+			HashSet<Long> used = new HashSet<>();
+			String currSeq = "";
+			for (long kmer: comp.kmers) {
+				if (!used.contains(kmer)) {
+					used.add(kmer);
+					currSeq = new ShortKmer(kmer, k).toString();
+					outer:
+					while (true) {
+						String suffix = currSeq.substring(0, k);
+						for (char nuc: nucs) {
+							String kmr = nuc + suffix;
+							long kmrLong = new ShortKmer(kmr).toLong();
+							if (comp.kmers.contains(kmrLong) && !used.contains(kmrLong)) {
+								currSeq = nuc + currSeq;
+								used.add(kmrLong);
+								continue outer;
+							}
+						}
+						break;
+					}
+					outer:
+					while (true) {
+						String prefix = currSeq.substring(currSeq.length() - k + 1);
+						for (char nuc: nucs) {
+							String kmr = prefix + nuc;
+							long kmrLong = new ShortKmer(kmr).toLong();
+							if (comp.kmers.contains(kmrLong) && !used.contains(kmrLong)) {
+								currSeq += nuc;
+								used.add(kmrLong);
+								continue outer;
+							}
+						}
+						break;
+					}
+					builder.append(currSeq + "\n>\n");
+					currSeq = "";
+				}
+			}
+			PrintWriter out = new PrintWriter (new File(filePath));
+			out.print(builder.substring(0, builder.length() - 2));
+			out.close();
+		}
+	}
 }

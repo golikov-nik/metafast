@@ -27,6 +27,13 @@ public class ComponentCutterMain extends Tool {
             .withDescription("k-mer size")
             .create());
 
+    public final Parameter<Integer> alg = addParameter(new IntParameterBuilder("alg")
+            .important()
+            .withShortOpt("alg")
+            .withDescription("number of an algorithm")
+            .withDefaultValue(0)
+            .create());
+
     public final Parameter<Integer> minLen = addParameter(new IntParameterBuilder("min-seq-len")
             .important()
             .withShortOpt("l")
@@ -91,7 +98,7 @@ public class ComponentCutterMain extends Tool {
         try {
             String statFP = workDir + File.separator + "components-stat-" +
                     minComponentSize.get() + "-" + maxComponentSize.get() + ".txt";
-            components = ComponentsBuilder.splitStrategy(hm, k.get(), minComponentSize.get(),
+            components = ComponentsBuilder.splitStrategy(alg.get(), hm, k.get(), minComponentSize.get(),
                     maxComponentSize.get(), statFP, logger, availableProcessors.get());
 
             componentsStatPr.set(new File(statFP));
@@ -106,6 +113,7 @@ public class ComponentCutterMain extends Tool {
 
         try {
             ConnectedComponent.saveComponents(components, componentsFile.get().getAbsolutePath());
+            ConnectedComponent.printComponents(components, k.get(), workDir.get().getAbsolutePath());
             info("Components saved to " + componentsFile.get());
         } catch (IOException e) {
             e.printStackTrace();
