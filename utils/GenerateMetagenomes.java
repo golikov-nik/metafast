@@ -1,18 +1,42 @@
 import java.io.*;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Random;
 import java.util.Scanner;
 
 public class GenerateMetagenomes {
 	public static boolean isValidInputFilename(String filename) {
 		return filename.endsWith(".fa") || filename.endsWith(".fasta") || filename.endsWith(".fastq") || filename.endsWith(".fna");
 	}
-
+	
+	public static char errorNuc(Character c) {
+		List<Character> nucs = new ArrayList<Character>(Arrays.asList('A', 'G', 'C', 'T'));
+		nucs.remove(c);
+		int i = new Random().nextInt(nucs.size());
+		return nucs.get(i);
+	}
+	
+	public static String modifyRead(String read, double p) {
+		if (p <= 0.0 || p > 1.0)
+			return read;
+		String ans = "";
+		for (int i = 0; i < read.length(); i++) {
+			char c = read.charAt(i);
+			if (Math.random() <= p) {
+				ans += errorNuc(c);
+			} else {
+				ans += c;
+			}
+		}
+		return ans;
+	}
+	
 	public static void main(String[] args) throws IOException {
-		if (args.length < 5 || args.length > 6) {
+		if (args.length < 6 || args.length > 7) {
 			System.out.println(
-					"Usage: java GenerateMetagenomes <genomes.fa|folder> <out_prefix> <genome number> <metagenome number> <coeffs> (coefficient)");
+					"Usage: java GenerateMetagenomes <genomes.fa|folder> <out_prefix> <genome number> <metagenome number> <coeffs> <coverage> <probability>");
 			return;
 		}
 
@@ -88,10 +112,9 @@ public class GenerateMetagenomes {
 		}
 		sc.close();
 		
-		int cov = 50;
-		if (args.length > 5)
-			cov = Integer.parseInt(args[5]);
+		int cov = Integer.parseInt(args[5]);
 		int readLength = 90;
+		double p = Double.parseDouble(args[6]);
 		
 		System.out.println("Generating test...");
 		List<String>[] reads = new List[m];
@@ -104,7 +127,7 @@ public class GenerateMetagenomes {
 				for (int r = 0; r < readsNumber; r++) {
 					int pos = (int) ((genome[j].length() - readLength + 1) * Math.random());
 					String read = genome[j].substring(pos, pos + readLength);
-					reads[i].add(read);
+					reads[i].add(modifyRead(read, p));
 				}
 			}
 
