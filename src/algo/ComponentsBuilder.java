@@ -1,6 +1,8 @@
 package algo;
 
 import it.unimi.dsi.fastutil.longs.LongArrayFIFOQueue;
+
+import org.apache.commons.lang.mutable.MutableLong;
 import org.apache.log4j.Logger;
 import ru.ifmo.genetics.executors.NonBlockingQueueExecutor;
 import ru.ifmo.genetics.statistics.Timer;
@@ -22,7 +24,7 @@ public class ComponentsBuilder {
 
 
     public static List<ConnectedComponent> splitStrategy(int alg, BigLong2ShortHashMap hm,
-                                                         int k, int b1, int b2,
+                                                         BigLong2ShortHashMap[] sequences, int k, int b1, int b2,
                                                          String statFP, Logger logger,
                                                          int availableProcessors) throws FileNotFoundException {
 
@@ -40,6 +42,9 @@ public class ComponentsBuilder {
             case 4:
             	builder.runRandomBFSStrategy(hm);
             	break;
+            case 5:
+            	builder.runSeptemberAlg(hm, sequences);
+            	break;
             default:
                 builder.run(hm);
                 break;
@@ -47,7 +52,8 @@ public class ComponentsBuilder {
         return builder.ans;
     }
 
-    final private List<ConnectedComponent> ans;
+
+	final private List<ConnectedComponent> ans;
     final private NonBlockingQueueExecutor executor;
     final int k;
     final int b1, b2;
@@ -152,6 +158,66 @@ public class ComponentsBuilder {
     		}
     	}
     }
+    
+    private void runSeptemberAlg(BigLong2ShortHashMap hm, BigLong2ShortHashMap[] sequences) {
+    	Random r = new Random();
+    	int hmSize = (int) hm.size();
+    	HashMap<Long, Boolean> used = new HashMap<>();
+    	hm.entryIterator().forEachRemaining(e -> used.put(e.getKey(), false));
+    	Long[] kmers = new Long[hmSize];
+    	used.keySet().toArray(kmers);
+    	int kmersLeft = hmSize;
+    	for (BigLong2ShortHashMap seq: sequences) {
+    		if (seq.size() > b2) {
+    				ConnectedComponent comp = new ConnectedComponent();
+    				for (MutableLong kmer: seq) {
+    					if (!used.get(kmer.longValue())) {
+    					comp.add(kmer.longValue());
+    					used.put(kmer.longValue(), true);
+    					kmersLeft--;
+    					}
+    				}
+    				if (comp.size > b2) {
+    				ans.add(comp);
+    				Tool.info(logger, "Put component with size: " + comp.size);
+    				}
+    			}
+    	}
+    	while (kmersLeft > 0) {
+    		long kmer = kmers[r.nextInt(kmers.length)];
+    		if (!used.get(kmer)) {
+    			ConnectedComponent comp = new ConnectedComponent();
+    			used.put(kmer, true);
+    			Queue<Long> q = new LinkedList<>();
+    			q.add(kmer);
+    			while (!q.isEmpty()) {
+    				if (kmersLeft % 1000 == 0)
+    					System.out.println(kmersLeft);
+    				long cur = q.poll();
+    				comp.add(cur);
+    				kmersLeft--;
+    				long[] neighbours = neighboursInGraph(hm, cur, k);
+    				if (comp.size >= b2 && neighbours.length >= 3) 
+    					continue;
+    				for (long neighbour: neighbours) {
+    					if (!used.get(neighbour)) {
+    						used.put(neighbour, true);
+    						q.add(neighbour);
+    					}
+    				}
+    			}
+    			for (long notUsedKmer: q) {
+    				used.put(notUsedKmer, false);
+    			}
+    			if (comp.size < b1) {
+    				continue;
+    			} else {
+    				Tool.info(logger, "Put component with size: " + comp.size);
+    				ans.add(comp);
+    			}
+    		}
+    	}
+	}
     
     public static long[] neighboursInGraph(BigLong2ShortHashMap hm, long kmer, int k) {
         return Arrays.stream(KmerOperations.possibleNeighbours(kmer, k)).filter(e -> hm.get(e) > 0).toArray();

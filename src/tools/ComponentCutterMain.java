@@ -85,20 +85,25 @@ public class ComponentCutterMain extends Tool {
     protected void runImpl() throws ExecutionFailedException, IOException {
         Timer t = new Timer();
         debug("Loading sequences from files...");
-        BigLong2ShortHashMap hm = IOUtils.loadReads(sequencesFiles.get(), k.get(), minLen.get(),
+        File[] seqFiles = sequencesFiles.get();
+        BigLong2ShortHashMap hm = IOUtils.loadReads(seqFiles, k.get(), minLen.get(),
                 availableProcessors.get(), logger);
+        BigLong2ShortHashMap[] sequences = new BigLong2ShortHashMap[seqFiles.length];
+        for (int i = 0; i < sequences.length; i++) {
+        	sequences[i] = IOUtils.loadReads(new File[]{seqFiles[i]}, k.get(), minLen.get(), availableProcessors.get(), logger);
+        }
         debug("Memory used = " + Misc.usedMemoryAsString() + ", time = " + t);
         if (hm.size() == 0) {
             throw new ExecutionFailedException("No sequences were found in input files! The following steps will be useless");
         }
-
+        
 
         info("Searching for components...");
         List<ConnectedComponent> components;
         try {
             String statFP = workDir + File.separator + "components-stat-" +
                     minComponentSize.get() + "-" + maxComponentSize.get() + ".txt";
-            components = ComponentsBuilder.splitStrategy(alg.get(), hm, k.get(), minComponentSize.get(),
+            components = ComponentsBuilder.splitStrategy(alg.get(), hm, sequences, k.get(), minComponentSize.get(),
                     maxComponentSize.get(), statFP, logger, availableProcessors.get());
 
             componentsStatPr.set(new File(statFP));
@@ -113,7 +118,7 @@ public class ComponentCutterMain extends Tool {
 
         try {
             ConnectedComponent.saveComponents(components, componentsFile.get().getAbsolutePath());
-            ConnectedComponent.printComponents(components, k.get(), workDir.get().getAbsolutePath());
+//            ConnectedComponent.printComponents(components, k.get(), workDir.get().getAbsolutePath());
             info("Components saved to " + componentsFile.get());
         } catch (IOException e) {
             e.printStackTrace();
