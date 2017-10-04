@@ -89,9 +89,10 @@ public class ComponentCutterMain extends Tool {
         BigLong2ShortHashMap hm = IOUtils.loadReads(seqFiles, k.get(), minLen.get(),
                 availableProcessors.get(), logger);
         BigLong2ShortHashMap[] sequences = new BigLong2ShortHashMap[seqFiles.length];
-        for (int i = 0; i < sequences.length; i++) {
-        	sequences[i] = IOUtils.loadReads(new File[]{seqFiles[i]}, k.get(), minLen.get(), availableProcessors.get(), logger);
-        }
+        if (alg.get() == 5)
+            for (int i = 0; i < sequences.length; i++) {
+        	    sequences[i] = IOUtils.loadReads(new File[]{seqFiles[i]}, k.get(), minLen.get(), availableProcessors.get(), logger);
+            }
         debug("Memory used = " + Misc.usedMemoryAsString() + ", time = " + t);
         if (hm.size() == 0) {
             throw new ExecutionFailedException("No sequences were found in input files! The following steps will be useless");
