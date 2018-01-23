@@ -5,13 +5,16 @@ import ru.ifmo.genetics.dna.kmers.ShortKmer;
 import ru.ifmo.genetics.io.writers.WritersUtils;
 import ru.ifmo.genetics.structures.map.BigLong2ShortHashMap;
 import ru.ifmo.genetics.utils.tool.ExecutionFailedException;
+import ru.ifmo.genetics.utils.tool.Tool;
 
 import java.io.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
+import java.util.HashSet;
+
+import org.apache.log4j.Logger;
 
 
 public class ConnectedComponent implements Comparable<ConnectedComponent> {
@@ -19,7 +22,7 @@ public class ConnectedComponent implements Comparable<ConnectedComponent> {
     /**
      * Stores k-mers if the component isn't a big one (less than b2 vertices).
      */
-    public HashSet<Long> kmers;
+    public ArrayList<Long> kmers;
 
     /**
      * Current component size (number of k-mers)
@@ -47,7 +50,7 @@ public class ConnectedComponent implements Comparable<ConnectedComponent> {
 
 
     public ConnectedComponent() {
-        kmers = new HashSet<>();
+        kmers = new ArrayList<>();
         size = 0;
         weight = 0;
     }
@@ -68,7 +71,6 @@ public class ConnectedComponent implements Comparable<ConnectedComponent> {
     public static void saveComponents(Collection<ConnectedComponent> components, String fp) throws IOException {
         DataOutputStream outputStream = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(fp)));
         outputStream.writeInt(components.size());
-
         for (ConnectedComponent component : components) {
             outputStream.writeInt((int) component.size);
             outputStream.writeLong(component.weight);
@@ -85,7 +87,6 @@ public class ConnectedComponent implements Comparable<ConnectedComponent> {
             DataInputStream inputStream = new DataInputStream(new BufferedInputStream(new FileInputStream(file)));
             int cnt = inputStream.readInt();
             List<ConnectedComponent> res = new ArrayList<ConnectedComponent>(cnt);
-
             for (int i = 0; i < cnt; i++) {
                 int componentSize = inputStream.readInt();
                 ConnectedComponent component = new ConnectedComponent();
@@ -124,13 +125,14 @@ public class ConnectedComponent implements Comparable<ConnectedComponent> {
     }
 
 
-	public static void printComponents(List<ConnectedComponent> components, int k, String output) throws FileNotFoundException {
+	public static void printComponents(Logger logger, List<ConnectedComponent> components, int k, String output) throws FileNotFoundException {
 		List<Character> nucs = Arrays.asList('A', 'G', 'C', 'T');
 		new File(output + "/fasta").mkdir();
+		ArrayList<String> reads = new ArrayList<>();
 		for (int i = 0; i < components.size(); i++) {
+			ArrayList<String> compReads = new ArrayList<>();
 			String filePath = output + "/fasta/comp_" + (i+1) + ".fa";
 			ConnectedComponent comp = components.get(i);
-			StringBuilder builder = new StringBuilder(">\n");
 			HashSet<Long> used = new HashSet<>();
 			String currSeq = "";
 			for (long kmer: comp.kmers) {
@@ -139,7 +141,7 @@ public class ConnectedComponent implements Comparable<ConnectedComponent> {
 					currSeq = new ShortKmer(kmer, k).toString();
 					outer:
 					while (true) {
-						String suffix = currSeq.substring(0, k);
+						String suffix = currSeq.substring(0, k-1);
 						for (char nuc: nucs) {
 							String kmr = nuc + suffix;
 							long kmrLong = new ShortKmer(kmr).toLong();
@@ -165,13 +167,28 @@ public class ConnectedComponent implements Comparable<ConnectedComponent> {
 						}
 						break;
 					}
-					builder.append(currSeq + "\n>\n");
+					if (!currSeq.equals(""))
+						compReads.add(currSeq);
 					currSeq = "";
 				}
 			}
 			PrintWriter out = new PrintWriter (new File(filePath));
-			out.print(builder.substring(0, builder.length() - 2));
+			printReads(out, compReads);
+			reads.addAll(compReads);
 			out.close();
+		}
+		PrintWriter out = new PrintWriter(new File(output + "/fasta/reads.fa"));
+		printReads(out, reads);
+		out.close();
+	}
+
+
+	private static void printReads(PrintWriter out, ArrayList<String> reads) {
+		int i = 1;
+		for (String read: reads) {
+			out.printf("> %d\n", i);
+			i++;
+			out.println(read);
 		}
 	}
 }

@@ -69,8 +69,7 @@ public class ComponentsBuilder {
 	}
 
 	private void runRandomBFSStrategy(BigLong2ShortHashMap hm) {
-		int hmSize = (int) hm.size(); // currently assuming integer number of
-										// kmers in graph
+		int hmSize = (int) hm.size(); 
 		Tool.info(logger, "Kmer groups in graph: " + String.valueOf(hmSize));
 		Long[] kmers = new Long[hmSize];
 		Iterator<MutableLongShortEntry> it = hm.entryIterator();
@@ -82,7 +81,6 @@ public class ComponentsBuilder {
 		}
 		Tool.info(logger, "Kmers in graph: " + String.valueOf(kmersLeft));
 		Random r = new Random();
-
 		while (kmersLeft > 0) {
 			long kmer = kmers[r.nextInt(kmers.length)];
 			short value = hm.get(kmer);
@@ -97,10 +95,8 @@ public class ComponentsBuilder {
 					kmersLeft--;
 					for (long neighbour : neighboursInGraph(hm, cur, k)) {
 						short neighbourValue = hm.get(neighbour);
-						if (neighbourValue > 0) {
-							hm.put(neighbour, (short) (neighbourValue - 1));
-							q.add(neighbour);
-						}
+						hm.put(neighbour, (short) (neighbourValue - 1));
+						q.add(neighbour);
 					}
 				}
 				for (long notUsedKmer : q) {
@@ -117,20 +113,23 @@ public class ComponentsBuilder {
 	}
 
 	private void runRandomBFSGroupStrategy(BigLong2ShortHashMap hm) {
-		int hmSize = (int) hm.size(); // currently assuming integer number of
-										// kmers in graph
-		Tool.info(logger, "Kmers in graph: " + String.valueOf(hmSize));
-		Random r = new Random();
-		HashMap<Long, Boolean> used = new HashMap<>();
-		hm.entryIterator().forEachRemaining(e -> used.put(e.getKey(), false));
+		int hmSize = (int) hm.size(); 
+		Tool.info(logger, "Kmer groups in graph: " + String.valueOf(hmSize));
 		Long[] kmers = new Long[hmSize];
-		used.keySet().toArray(kmers);
+		Iterator<MutableLongShortEntry> it = hm.entryIterator();
 		int kmersLeft = hmSize;
+		for (int i = 0; it.hasNext(); i++) {
+			MutableLongShortEntry entry = it.next();
+			kmers[i] = entry.getKey();
+		}
+		Tool.info(logger, "Kmers in graph: " + String.valueOf(kmersLeft));
+		Random r = new Random();
 		while (kmersLeft > 0) {
 			long kmer = kmers[r.nextInt(kmers.length)];
-			if (!used.get(kmer)) {
+			short value = hm.get(kmer);
+			if (value > 0) {
 				ConnectedComponent comp = new ConnectedComponent();
-				used.put(kmer, true);
+				hm.put(kmer, (short) -value);
 				Queue<Long> q = new LinkedList<>();
 				q.add(kmer);
 				while (!q.isEmpty() && comp.size <= b2) {
@@ -138,14 +137,13 @@ public class ComponentsBuilder {
 					comp.add(cur);
 					kmersLeft--;
 					for (long neighbour : neighboursInGraph(hm, cur, k)) {
-						if (!used.get(neighbour)) {
-							used.put(neighbour, true);
-							q.add(neighbour);
-						}
+						short neighbourValue = hm.get(neighbour);
+						hm.put(neighbour, (short) -neighbourValue);
+						q.add(neighbour);
 					}
 				}
 				for (long notUsedKmer : q) {
-					used.put(notUsedKmer, false);
+					hm.put(notUsedKmer, (short) -hm.get(notUsedKmer));
 				}
 				if (comp.size < b1 || comp.size > b2) {
 					continue;
@@ -160,38 +158,43 @@ public class ComponentsBuilder {
 	private void runSeptemberAlg(BigLong2ShortHashMap hm, Deque<Sequence> sequences) {
 		Random r = new Random();
 		int hmSize = (int) hm.size();
-		HashMap<Long, Boolean> used = new HashMap<>();
-		hm.entryIterator().forEachRemaining(e -> used.put(e.getKey(), false));
+		Iterator<MutableLongShortEntry> it = hm.entryIterator();
 		Long[] kmers = new Long[hmSize];
-		used.keySet().toArray(kmers);
+		for (int i = 0; it.hasNext(); i++) {
+			MutableLongShortEntry entry = it.next();
+			kmers[i] = entry.getKey();
+		}
 		int kmersLeft = hmSize;
 		Tool.info(logger, String.format("Number of sequences: %d\n", sequences.size()));
 		int ind = 0;
-		int errorKmers = 0;
 		for (Sequence seq : sequences) {
 			Tool.info(logger, String.format(("Sequence %d length: %d\n"), ind, seq.length() - k + 1));
 			ConnectedComponent comp = new ConnectedComponent();
 			for (ShortKmer kmer : ShortKmer.kmersOf(seq, k)) {
-				if (!used.get(kmer.toLong())) {
+				short value = hm.get(kmer.toLong());
+				if (value > 0) {
 					comp.add(kmer.toLong());
-					used.put(kmer.toLong(), true);
+					hm.put(kmer.toLong(), (short) -value);
 					kmersLeft--;
-				} else {
-					errorKmers++;
 				}
 			}
 			if (comp.size > b2) {
 				ans.add(comp);
 				Tool.info(logger, "Put component with size: " + comp.size);
+			} else {
+				for (long kmer: comp.kmers) {
+					hm.put(kmer, (short) -hm.get(kmer));
+					kmersLeft++;
+				}
 			}
 			ind++;
 		}
-		Tool.info(logger, String.format("Found %d kmers that were already present", errorKmers));
 		while (kmersLeft > 0) {
 			long kmer = kmers[r.nextInt(kmers.length)];
-			if (!used.get(kmer)) {
+			short value = hm.get(kmer);
+			if (value > 0) {
 				ConnectedComponent comp = new ConnectedComponent();
-				used.put(kmer, true);
+				hm.put(kmer, (short) -value);
 				Queue<Long> q = new LinkedList<>();
 				q.add(kmer);
 				while (!q.isEmpty()) {
@@ -199,17 +202,16 @@ public class ComponentsBuilder {
 					comp.add(cur);
 					kmersLeft--;
 					long[] neighbours = neighboursInGraph(hm, cur, k);
-					if (comp.size >= b2 && neighbours.length >= 3)
+					if (comp.size >= b2 && neighbours.length >= 2)
 						continue;
 					for (long neighbour : neighbours) {
-						if (!used.get(neighbour)) {
-							used.put(neighbour, true);
-							q.add(neighbour);
-						}
+						short neighbourValue = hm.get(neighbour);
+						hm.put(neighbour, (short) -neighbourValue);
+						q.add(neighbour);
 					}
 				}
 				for (long notUsedKmer : q) {
-					used.put(notUsedKmer, false);
+					hm.put(notUsedKmer, (short) -hm.get(notUsedKmer));
 				}
 				if (comp.size < b1) {
 					continue;
@@ -226,8 +228,7 @@ public class ComponentsBuilder {
 	}
 
 	private void runRandomGroupStrategy(BigLong2ShortHashMap hm) {
-		int hmSize = (int) hm.size(); // currently assuming integer number of
-										// kmers in graph
+		int hmSize = (int) hm.size(); 
 		int kmersLeft = hmSize;
 		Tool.info(logger, "Kmer groups in graph: " + String.valueOf(hmSize));
 		Random r = new Random();
@@ -265,8 +266,7 @@ public class ComponentsBuilder {
 	}
 
 	private void runRandomStrategy(BigLong2ShortHashMap hm) {
-		int hmSize = (int) hm.size(); // currently assuming integer number of
-										// kmers in graph
+		int hmSize = (int) hm.size(); 
 		Tool.info(logger, "Kmer groups in graph: " + String.valueOf(hmSize));
 		Random r = new Random();
 		Long[] kmers = new Long[hmSize];
@@ -280,12 +280,7 @@ public class ComponentsBuilder {
 		Tool.info(logger, "Kmers in graph: " + String.valueOf(sumValue));
 		ConnectedComponent currentComponent = new ConnectedComponent();
 		assert sumValue >= b1;
-		long currentComponentSize = (long) (Math.random() * (Math.min(b2, sumValue) - b1 + 1) + b1); // size
-																										// in
-																										// range
-																										// [b1,
-																										// min(b2,
-																										// sumValue)]
+		long currentComponentSize = (long) (Math.random() * (Math.min(b2, sumValue) - b1 + 1) + b1); 
 		while (sumValue > 0) {
 			long token = kmers[r.nextInt(hmSize)];
 			short value = hm.get(token);
@@ -411,9 +406,7 @@ public class ComponentsBuilder {
 		@Override
 		public void run() {
 			int curFreqThreshold = component.usedFreqThreshold + 1;
-
 			List<ConnectedComponent> newComps = findAllComponents(component.nextHM, k, b2, curFreqThreshold);
-
 			for (ConnectedComponent comp : newComps) {
 				if (comp.size < b1) {
 					// skipping
@@ -480,7 +473,7 @@ public class ComponentsBuilder {
 		hm.put(startKmer, (short) -value); // removing
 		comp.add(startKmer, value);
 		boolean alreadyBigComp = false;
-
+		
 		while (queue.size() > 0) {
 			long kmer = queue.dequeue();
 
@@ -516,5 +509,5 @@ public class ComponentsBuilder {
 
 		return comp;
 	}
-
+	
 }

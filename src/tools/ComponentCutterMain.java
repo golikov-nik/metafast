@@ -1,6 +1,7 @@
 package tools;
 
 import algo.ComponentsBuilder;
+import algo.KmerOperations;
 import algo.SequencesFinders;
 import ru.ifmo.genetics.statistics.Timer;
 import ru.ifmo.genetics.structures.map.BigLong2ShortHashMap;
@@ -18,7 +19,12 @@ import ru.ifmo.genetics.utils.NumUtils;
 
 import java.io.*;
 import java.util.Deque;
+import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Queue;
+
+import org.apache.commons.lang.mutable.MutableLong;
 
 public class ComponentCutterMain extends Tool {
 	public static final String NAME = "component-cutter";
@@ -82,7 +88,19 @@ public class ComponentCutterMain extends Tool {
 			throw new ExecutionFailedException(
 					"No sequences were found in input files! The following steps will be useless");
 		}
-
+		int solo = 0;
+		int root = 0;
+		int link = 0;
+		int multi = 0;
+		for (MutableLong kmer: hm) {
+			if (hm.get(kmer.toLong()) <= 0) continue;
+			int neighbors = ComponentsBuilder.neighboursInGraph(hm, kmer.toLong(), k.get()).length;
+			if (neighbors == 0) solo++;
+			else if (neighbors == 1) root++;
+			else if (neighbors == 2) link++;
+			else multi++;
+		}
+		info(String.format("Found %d solo kmers, %d roots, %d links, %d multi kmers\n", solo, root, link, multi));
 		info("Searching for components...");
 		List<ConnectedComponent> components;
 		try {
@@ -100,12 +118,15 @@ public class ComponentCutterMain extends Tool {
 		if (components.size() == 0) {
 			warn("No components were extracted! Perhaps you should decrease --min-component-size value");
 		}
-
+		
 		try {
 			ConnectedComponent.saveComponents(components, componentsFile.get().getAbsolutePath());
-			// ConnectedComponent.printComponents(components, k.get(),
-			// workDir.get().getAbsolutePath());
+			// ConnectedComponent.printComponents(logger, components, k.get(),
+			// workDir.get().gettAbsolutePath());
+			long size = components.stream().map(e -> e.size).reduce(Long::sum).get();
+			info(String.format("Average component size %d\n", Math.round((double)size/components.size())));
 			info("Components saved to " + componentsFile.get());
+			
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
